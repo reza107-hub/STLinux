@@ -1,0 +1,178 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Light theme. Values for light come from SourceTree's own palette. */
+:root {
+  --background: #ffffff;
+  --surface: #f4f5f7;
+  --surface-raised: #ffffff;
+  --titlebar: #0052cc;
+  --border: #cccccc;
+  --splitter: #d6d6d6;
+  --foreground: #172b4d;
+  --foreground-strong: #0c0c0c;
+  --muted: #808080;
+  --primary: #0052cc;
+  --primary-foreground: #ffffff;
+  --selection: #deebff;
+  --hover: #ebecf0;
+  --success: #00875a;
+  --danger: #de350b;
+  --warning: #ffab00;
+  --info: #00a3bf;
+  --diff-add-bg: #e3fcef;
+  --diff-remove-bg: #ffebe5;
+  --diff-hunk-bg: #deebff;
+  --graph-1: #0052cc;
+  --graph-2: #00875a;
+  --graph-3: #de350b;
+  --graph-4: #6554c0;
+  --graph-5: #ff8b00;
+  --graph-6: #00a3bf;
+}
+
+/* Dark theme (default). Our own design, original ships no dark colours. */
+.dark {
+  --background: #1d2125;
+  --surface: #22272b;
+  --surface-raised: #2c333a;
+  --titlebar: #161a1d;
+  --border: #38414a;
+  --splitter: #454f59;
+  --foreground: #b6c2cf;
+  --foreground-strong: #dee4ea;
+  --muted: #8c9bab;
+  --primary: #579dff;
+  --primary-foreground: #101214;
+  --selection: #1c2b41;
+  --hover: #2c333a;
+  --success: #4bce97;
+  --danger: #f87168;
+  --warning: #e2b203;
+  --info: #60c6d2;
+  --diff-add-bg: #1c3329;
+  --diff-remove-bg: #42221f;
+  --diff-hunk-bg: #1c2b41;
+  --graph-1: #579dff;
+  --graph-2: #4bce97;
+  --graph-3: #f87168;
+  --graph-4: #9f8fef;
+  --graph-5: #f5a45a;
+  --graph-6: #60c6d2;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-titlebar: var(--titlebar);
+  --color-border: var(--border);
+  --color-splitter: var(--splitter);
+  --color-foreground: var(--foreground);
+  --color-foreground-strong: var(--foreground-strong);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-selection: var(--selection);
+  --color-hover: var(--hover);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-diff-add: var(--diff-add-bg);
+  --color-diff-remove: var(--diff-remove-bg);
+  --color-diff-hunk: var(--diff-hunk-bg);
+  --color-graph-1: var(--graph-1);
+  --color-graph-2: var(--graph-2);
+  --color-graph-3: var(--graph-3);
+  --color-graph-4: var(--graph-4);
+  --color-graph-5: var(--graph-5);
+  --color-graph-6: var(--graph-6);
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+}
+
+/* Tell the web view which theme native controls (dropdowns, scrollbars) should use. */
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Native dropdowns ignore Tailwind colours in WebKitGTK unless set directly. */
+select,
+select option,
+select optgroup,
+input,
+textarea {
+  background-color: var(--background);
+  color: var(--foreground-strong);
+}
+
+select {
+  appearance: none;
+  padding-right: 22px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%238c9bab' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  background-color: initial;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  user-select: none;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+input,
+textarea,
+select {
+  user-select: text;
+  outline: none;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--splitter) transparent;
+}
+
+.selectable {
+  user-select: text;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}

@@ -1,0 +1,6 @@
+# Local analysis of the original Windows app (proprietary material, kept off GitHub)
+/reference/
+# Built packages
+/dist/
+# Local Claude Code settings
+/.claude/
