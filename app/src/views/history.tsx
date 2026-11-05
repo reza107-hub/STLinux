@@ -1,7 +1,7 @@
 import { FileText, Search as SearchIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DiffView from '../components/diff-view'
-import { Button, ContextMenu, Spinner, Splitter, type MenuItem } from '../components/ui'
+import { BranchMultiSelect, Button, ContextMenu, Spinner, Splitter, type MenuItem } from '../components/ui'
 import { api } from '../lib/api'
 import { formatDate, shortSha, errText } from '../lib/format'
 import { layoutGraph, type GraphRow } from '../lib/graph'
@@ -296,7 +296,7 @@ export function HistoryView() {
   const [commits, setCommits] = useState<Commit[]>([])
   const [loading, setLoading] = useState(true)
   const [more, setMore] = useState(false)
-  const [branch, setBranch] = useState('')
+  const [branches, setBranches] = useState<string[]>([])
   const [showRemote, setShowRemote] = useState(true)
   const [topo, setTopo] = useState(false)
   const [author, setAuthor] = useState('')
@@ -322,8 +322,8 @@ export function HistoryView() {
         const rows = await api.log(path, {
           limit: PAGE,
           skip,
-          all: !branch && showRemote,
-          branch: branch || null,
+          all: showRemote,
+          branches,
           topo,
           searchKind: authorQ ? 'author' : null,
           query: authorQ || null,
@@ -341,7 +341,7 @@ export function HistoryView() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [path, branch, showRemote, topo, authorQ],
+    [path, branches, showRemote, topo, authorQ],
   )
 
   useEffect(() => {
@@ -366,12 +366,16 @@ export function HistoryView() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-border bg-surface px-1">
         <div className="flex items-center gap-3">
-          <select aria-label="Branch filter" value={branch} onChange={(e) => setBranch(e.target.value)} className="h-5 rounded border border-border bg-background px-1 text-foreground-strong">
-            <option value="">All branches</option>
-            {(refs?.local ?? []).map((b) => (<option key={b.full} value={b.name}>{b.name}</option>))}
-          </select>
+          <BranchMultiSelect
+            selected={branches}
+            onChange={setBranches}
+            groups={[
+              { title: 'Local', names: (refs?.local ?? []).map((b) => b.name) },
+              { title: 'Remote', names: (refs?.remote ?? []).map((b) => b.name).filter((n) => !n.endsWith('/HEAD')) },
+            ]}
+          />
           <label className="flex items-center gap-1.5">
-            <input type="checkbox" className="accent-primary" checked={showRemote} disabled={!!branch} onChange={(e) => setShowRemote(e.target.checked)} />
+            <input type="checkbox" className="accent-primary" checked={showRemote} disabled={branches.length > 0} onChange={(e) => setShowRemote(e.target.checked)} />
             Show Remote Branches
           </label>
           <select aria-label="Order" value={topo ? 'topo' : 'date'} onChange={(e) => setTopo(e.target.value === 'topo')} className="h-5 rounded border border-border bg-background px-1 text-foreground-strong">
@@ -467,7 +471,7 @@ export function SearchView() {
     setLoading(true)
     setSelected(null)
     try {
-      setResults(await api.log(path, { limit: 500, skip: 0, all: true, topo: false, searchKind: kind, query: query.trim() }))
+      setResults(await api.log(path, { limit: 500, skip: 0, all: true, branches: [], topo: false, searchKind: kind, query: query.trim() }))
     } catch (e) {
       app.notify('error', errText(e))
       setResults([])

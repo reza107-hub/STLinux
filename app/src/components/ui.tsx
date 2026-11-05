@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 
 type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
@@ -224,6 +224,80 @@ export function ContextMenu({
             {it.hint && <span className="text-muted">{it.hint}</span>}
           </button>
         ),
+      )}
+    </div>
+  )
+}
+
+export type BranchGroup = { title: string; names: string[] }
+
+/** Dropdown with checkboxes. Empty selection means "All branches". */
+export function BranchMultiSelect({
+  selected,
+  onChange,
+  groups,
+}: {
+  selected: string[]
+  onChange: (v: string[]) => void
+  groups: BranchGroup[]
+}) {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const down = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('mousedown', down)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.removeEventListener('mousedown', down)
+      window.removeEventListener('keydown', key)
+    }
+  }, [open])
+  const toggle = (n: string) =>
+    onChange(selected.includes(n) ? selected.filter((x) => x !== n) : [...selected, n])
+  const label =
+    selected.length === 0 ? 'All branches' : selected.length === 1 ? selected[0] : `${selected.length} branches`
+  const row = 'flex h-6 w-full cursor-pointer items-center gap-2 px-3 text-left hover:bg-hover'
+  return (
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        aria-label="Branch filter"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="h-5 max-w-48 truncate rounded border border-border bg-background px-2 text-foreground-strong"
+      >
+        {label} ▾
+      </button>
+      {open && (
+        <div className="absolute left-0 top-6 z-[60] max-h-80 min-w-52 overflow-y-auto rounded border border-border bg-surface-raised py-1 shadow-xl">
+          <button type="button" className={row} onClick={() => onChange([])}>
+            <input type="checkbox" className="size-3.5 accent-primary" checked={selected.length === 0} readOnly tabIndex={-1} />
+            All branches
+          </button>
+          {groups.map((g) =>
+            g.names.length === 0 ? null : (
+              <div key={g.title}>
+                <div className="mt-1 border-t border-border px-3 pt-1 text-muted">{g.title}</div>
+                {g.names.map((n) => (
+                  <label key={n} className={row}>
+                    <input
+                      type="checkbox"
+                      className="size-3.5 accent-primary"
+                      checked={selected.includes(n)}
+                      onChange={() => toggle(n)}
+                    />
+                    <span className="truncate">{n}</span>
+                  </label>
+                ))}
+              </div>
+            ),
+          )}
+        </div>
       )}
     </div>
   )

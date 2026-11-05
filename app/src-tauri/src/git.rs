@@ -270,7 +270,7 @@ pub struct LogOpts {
     pub limit: u32,
     pub skip: u32,
     pub all: bool,
-    pub branch: Option<String>,
+    pub branches: Vec<String>,
     pub topo: bool,
     pub search_kind: Option<String>,
     pub query: Option<String>,
@@ -542,13 +542,15 @@ pub async fn log(path: String, opts: LogOpts) -> Result<Vec<Commit>, String> {
             Some("file") if !q.is_empty() => pathspec = Some(q.clone()),
             _ => {}
         }
-        if opts.all {
+        if !opts.branches.is_empty() {
+            for b in &opts.branches {
+                ensure_not_flag(b)?;
+                args.push(b.clone());
+            }
+        } else if opts.all {
             args.push("--all".into());
-        } else if let Some(b) = &opts.branch {
-            ensure_not_flag(b)?;
-            args.push(b.clone());
         } else {
-            args.push("HEAD".into());
+            args.push("--branches".into());
         }
         if let Some(p) = pathspec {
             args.push("--".into());
@@ -1429,7 +1431,7 @@ mod tests {
         assert_eq!((s[0].index.as_str(), s[0].worktree.as_str()), (" ", "M"));
         let diff = block_on(working_diff(d.clone(), "a.txt".into(), false, false)).unwrap();
         assert!(diff.contains("+two"));
-        let l = block_on(log(d.clone(), LogOpts { limit: 10, skip: 0, all: true, branch: None, topo: false, search_kind: None, query: None })).unwrap();
+        let l = block_on(log(d.clone(), LogOpts { limit: 10, skip: 0, all: true, branches: vec![], topo: false, search_kind: None, query: None })).unwrap();
         assert_eq!(l.len(), 1);
         assert_eq!(l[0].subject, "first");
         assert!(l[0].parents.is_empty());
@@ -1445,7 +1447,7 @@ mod tests {
     #[test]
     fn empty_repo_is_safe() {
         let d = setup("empty");
-        let l = block_on(log(d.clone(), LogOpts { limit: 10, skip: 0, all: true, branch: None, topo: false, search_kind: None, query: None })).unwrap();
+        let l = block_on(log(d.clone(), LogOpts { limit: 10, skip: 0, all: true, branches: vec![], topo: false, search_kind: None, query: None })).unwrap();
         assert!(l.is_empty());
         let sm = block_on(repo_summary(d.clone())).unwrap();
         assert_eq!(sm.pending, 0);
@@ -1504,10 +1506,10 @@ mod tests {
         assert!(r.stashes[0].message.contains("wip"));
         block_on(stash_action(d.clone(), "stash@{0}".into(), "pop".into())).unwrap();
         assert_eq!(block_on(status(d.clone())).unwrap().len(), 1);
-        let l = block_on(log(d.clone(), LogOpts { limit: 10, skip: 0, all: true, branch: None, topo: true, search_kind: Some("message".into()), query: Some("feat".into()) })).unwrap();
+        let l = block_on(log(d.clone(), LogOpts { limit: 10, skip: 0, all: true, branches: vec![], topo: true, search_kind: Some("message".into()), query: Some("feat".into()) })).unwrap();
         // matches "on feat" and the "Merge branch 'feat'" commit
         assert_eq!(l.len(), 2);
-        let all = block_on(log(d.clone(), LogOpts { limit: 10, skip: 0, all: true, branch: None, topo: false, search_kind: None, query: None })).unwrap();
+        let all = block_on(log(d.clone(), LogOpts { limit: 10, skip: 0, all: true, branches: vec![], topo: false, search_kind: None, query: None })).unwrap();
         assert_eq!(all.len(), 3);
         assert!(all[0].parents.len() == 2, "merge commit has two parents");
         block_on(delete_branch(d.clone(), "feat".into(), false, None)).unwrap();

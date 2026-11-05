@@ -61,7 +61,7 @@ export type LogOpts = {
   limit: number
   skip: number
   all: boolean
-  branch?: string | null
+  branches: string[]
   topo: boolean
   searchKind?: string | null
   query?: string | null
