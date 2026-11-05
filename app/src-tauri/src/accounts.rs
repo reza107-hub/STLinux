@@ -743,11 +743,12 @@ mod tests {
     fn keyring_roundtrip_if_available() {
         let id = format!("stlinux-test-{}", std::process::id());
         let Some(e) = keyring_entry(&id) else { return };
-        if e.set_password("s3cret").is_err() {
+        let value = format!("value-{}", id.len());
+        if e.set_password(&value).is_err() {
             eprintln!("no Secret Service available, skipping");
             return;
         }
-        assert_eq!(e.get_password().unwrap(), "s3cret");
+        assert_eq!(e.get_password().unwrap(), value);
         e.delete_credential().unwrap();
         assert!(e.get_password().is_err());
     }
