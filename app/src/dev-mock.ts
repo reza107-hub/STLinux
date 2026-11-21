@@ -84,6 +84,8 @@ const files = [
 const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   check_account: (a) => (String(a.id).includes('server') ? Promise.reject('The server rejected the saved token (HTTP 401). Log in again.') : 'Connected as Ava Chen'),
   startup: () => FRESH ? ({ accounts: [], hiddenKeys: 0, sshKeys: [], agentHasKeys: false }) : ({ accounts: [{ id: 'bitbucket-cloud:ava@example.com', kind: 'bitbucket-cloud', rootUrl: 'https://bitbucket.org', username: 'ava@example.com' }, { id: 'bitbucket-server:x:ava', kind: 'bitbucket-server', rootUrl: 'https://git.example.com', username: 'ava' }], hiddenKeys: 1, sshKeys: [{ name: 'id_ed25519', path: '/home/demo/.ssh/id_ed25519', publicKey: 'ssh-ed25519 AAAA demo', fingerprint: '256 SHA256:abc demo (ED25519)' }], agentHasKeys: true }),
+  probe_remote: (a) => String(a.url).includes('bad') ? Promise.reject("fatal: repository '" + a.url + "' not found") : new Promise((r) => setTimeout(() => r({ branches: ['dev', 'main', 'release/1.0'], defaultBranch: 'main' }), 600)),
+  clone_repo: (a) => a.dest,
   git_version: () => 'git version 2.53.0',
   open_repo: (a) => ({ path: a.path, name: String(a.path).split('/').pop(), branch: 'main', detached: false }),
   repo_summary: () => ({ branch: 'main', detached: false, pending: files.length, ahead: 2, behind: 1, hasUpstream: true, hasRemote: true, merging: false, rebasing: false }),

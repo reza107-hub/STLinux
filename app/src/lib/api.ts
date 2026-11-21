@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type {
-  Account, ChangedFile, Commit, CommitDetails, CommitOpts, FileEntry, FlowConfig,
-  Identity, LogOpts, PushOpts, Refs, RemoteRepo, RepoInfo, SshKey, Startup, Summary,
+  Account, ChangedFile, CloneOpts, Commit, CommitDetails, CommitOpts, FileEntry, FlowConfig,
+  Identity, LogOpts, PushOpts, Refs, RemoteProbe, RemoteRepo, RepoInfo, SshKey, Startup, Summary,
 } from './types'
 
 export const inTauri = () => '__TAURI_INTERNALS__' in window
@@ -25,7 +25,8 @@ export const api = {
   gitVersion: () => invoke<string>('git_version'),
   openRepo: (path: string) => invoke<RepoInfo>('open_repo', p(path)),
   initRepo: (path: string) => invoke<RepoInfo>('init_repo', p(path)),
-  cloneRepo: (url: string, dest: string) => invoke<string>('clone_repo', { url, dest }),
+  cloneRepo: (url: string, dest: string, opts?: CloneOpts) => invoke<string>('clone_repo', { url, dest, opts }),
+  probeRemote: (url: string) => invoke<RemoteProbe>('probe_remote', { url }),
   summary: (path: string) => invoke<Summary>('repo_summary', p(path)),
   status: (path: string) => invoke<FileEntry[]>('status', p(path)),
   refs: (path: string) => invoke<Refs>('refs', p(path)),

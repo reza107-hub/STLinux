@@ -20,6 +20,7 @@ pub fn run() {
       git::open_repo,
       git::init_repo,
       git::clone_repo,
+      git::probe_remote,
       git::repo_summary,
       git::status,
       git::refs,

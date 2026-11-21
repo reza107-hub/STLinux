@@ -1,11 +1,11 @@
 import { open } from '@tauri-apps/plugin-dialog'
-import { FolderPlus, FolderOpen, GitFork, Lock, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FolderPlus, FolderOpen, GitFork, Lock, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button, Field, Spinner, inputCls } from '../components/ui'
 import { api } from '../lib/api'
 import { baseName, errText, repoNameFromUrl } from '../lib/format'
 import { useApp } from '../lib/store'
-import type { RemoteRepo } from '../lib/types'
+import type { CloneOpts, RemoteProbe, RemoteRepo } from '../lib/types'
 
 type Section = 'local' | 'remote' | 'clone'
 
@@ -85,9 +85,9 @@ function Local() {
   )
 }
 
-async function cloneInto(app: ReturnType<typeof useApp>, url: string, parent: string, name: string) {
+async function cloneInto(app: ReturnType<typeof useApp>, url: string, parent: string, name: string, opts?: CloneOpts) {
   const dest = `${parent.replace(/\/+$/, '')}/${name}`
-  const ok = await app.run('Clone', () => api.cloneRepo(url, dest).then(() => `Cloned into ${dest}`))
+  const ok = await app.run('Clone', () => api.cloneRepo(url, dest, opts).then(() => `Cloned into ${dest}`))
   if (ok) await app.openRepoPath(dest)
 }
 
@@ -157,22 +157,62 @@ function Remote() {
   )
 }
 
+type Probe = { state: 'idle' } | { state: 'checking' } | { state: 'ok'; info: RemoteProbe } | { state: 'error'; text: string }
+
 function Clone() {
   const app = useApp()
   const [url, setUrl] = useState('')
   const [parent, setParent] = useState('')
   const [name, setName] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
+  const [probe, setProbe] = useState<Probe>({ state: 'idle' })
+  const [showDetails, setShowDetails] = useState(false)
+  const [advanced, setAdvanced] = useState(false)
+  const [branch, setBranch] = useState('')
+  const [depth, setDepth] = useState('')
+  const [recurse, setRecurse] = useState(false)
+  const [noHardlinks, setNoHardlinks] = useState(false)
 
   useEffect(() => {
     if (!nameTouched) setName(repoNameFromUrl(url))
   }, [url, nameTouched])
 
+  const check = async () => {
+    const u = url.trim()
+    if (!u) { setProbe({ state: 'idle' }); return }
+    setProbe({ state: 'checking' })
+    setShowDetails(false)
+    setBranch('')
+    try { setProbe({ state: 'ok', info: await api.probeRemote(u) }) }
+    catch (e) { setProbe({ state: 'error', text: errText(e) }) }
+  }
+
+  const depthNum = depth.trim() === '' ? undefined : Number(depth)
+  const depthBad = depthNum !== undefined && (!Number.isInteger(depthNum) || depthNum < 1)
+  const ready = probe.state === 'ok'
+  const submit = () => cloneInto(app, url.trim(), parent, name.trim(), {
+    branch: branch || undefined,
+    depth: depthBad ? undefined : depthNum,
+    recurseSubmodules: recurse,
+    noHardlinks,
+  })
+
   return (
-    <form className="mx-auto max-w-xl p-6" onSubmit={(e) => { e.preventDefault(); void cloneInto(app, url.trim(), parent, name.trim()) }}>
-      <Field label="Source URL" hint="For example git@bitbucket.org:team/repo.git or https://bitbucket.org/team/repo.git">
-        <input autoFocus className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} />
+    <form className="mx-auto max-w-xl p-6" onSubmit={(e) => { e.preventDefault(); void submit() }}>
+      <Field label="Source Path / URL" hint="For example git@bitbucket.org:team/repo.git or https://bitbucket.org/team/repo.git">
+        <input autoFocus className={inputCls} value={url} onChange={(e) => { setUrl(e.target.value); setProbe({ state: 'idle' }) }} onBlur={() => { if (probe.state === 'idle') void check() }} />
       </Field>
+      <div className="-mt-1 mb-3 flex min-h-5 items-center gap-2 text-muted">
+        {probe.state === 'checking' && <><Spinner size={12} /> Checking source...</>}
+        {probe.state === 'ok' && <span>Repository Type: Git ({probe.info.branches.length} {probe.info.branches.length === 1 ? 'branch' : 'branches'})</span>}
+        {probe.state === 'error' && (
+          <>
+            <span className="text-danger">Could not read this source.</span>
+            <button type="button" className="underline hover:text-foreground-strong" onClick={() => setShowDetails((v) => !v)}>Details...</button>
+          </>
+        )}
+      </div>
+      {probe.state === 'error' && showDetails && <p role="alert" className="mb-3 whitespace-pre-wrap rounded border border-danger p-2 text-danger">{probe.text}</p>}
       <Field label="Destination folder">
         <div className="flex gap-2">
           <input className={inputCls} value={parent} onChange={(e) => setParent(e.target.value)} placeholder="/home/you/projects" />
@@ -182,8 +222,33 @@ function Clone() {
       <Field label="Name">
         <input className={inputCls} value={name} onChange={(e) => { setName(e.target.value); setNameTouched(true) }} />
       </Field>
+      <div className="mb-3">
+        <button type="button" aria-expanded={advanced} disabled={probe.state === 'checking'} onClick={() => setAdvanced((v) => !v)} className="flex items-center gap-1 text-muted hover:text-foreground-strong disabled:opacity-50">
+          {advanced ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Advanced Options
+        </button>
+        {advanced && !ready && <p className="mt-2 text-muted">Advanced options will appear once the clone source has been checked successfully.</p>}
+        {advanced && probe.state === 'ok' && (
+          <div className="mt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Checkout branch">
+                <select className={inputCls} value={branch} onChange={(e) => setBranch(e.target.value)}>
+                  <option value="">{probe.info.defaultBranch ? `Default (${probe.info.defaultBranch})` : 'Default'}</option>
+                  {probe.info.branches.map((b) => (<option key={b} value={b}>{b}</option>))}
+                </select>
+              </Field>
+              <Field label="Clone depth" hint={depthBad ? 'Enter a whole number, 1 or more' : undefined}>
+                <input className={inputCls} inputMode="numeric" value={depth} onChange={(e) => setDepth(e.target.value)} placeholder="Full history" />
+              </Field>
+            </div>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-1.5"><input type="checkbox" className="accent-primary" checked={recurse} onChange={(e) => setRecurse(e.target.checked)} /> Recurse submodules</label>
+              <label className="flex items-center gap-1.5"><input type="checkbox" className="accent-primary" checked={noHardlinks} onChange={(e) => setNoHardlinks(e.target.checked)} /> No hardlinks</label>
+            </div>
+          </div>
+        )}
+      </div>
       {parent && name && <p className="mb-3 text-muted">Will clone into {parent.replace(/\/+$/, '')}/{name || baseName(url)}</p>}
-      <Button variant="primary" type="submit" disabled={!url.trim() || !parent.trim() || !name.trim() || !!app.busy}>
+      <Button variant="primary" type="submit" disabled={!url.trim() || !parent.trim() || !name.trim() || depthBad || probe.state === 'checking' || !!app.busy}>
         {app.busy ? <Spinner size={12} /> : null} Clone
       </Button>
     </form>

@@ -103,3 +103,6 @@ export type FlowConfig = {
   versionTag: string
 }
 export type Identity = { name: string; email: string }
+
+export type CloneOpts = { branch?: string; depth?: number; recurseSubmodules?: boolean; noHardlinks?: boolean }
+export type RemoteProbe = { branches: string[]; defaultBranch: string | null }

@@ -340,22 +340,90 @@ pub async fn init_repo(path: String) -> Result<RepoInfo, String> {
     .await
 }
 
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloneOpts {
+    pub branch: Option<String>,
+    pub depth: Option<u32>,
+    pub recurse_submodules: bool,
+    pub no_hardlinks: bool,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteProbe {
+    pub branches: Vec<String>,
+    pub default_branch: Option<String>,
+}
+
+fn url_pre(url: &str) -> Vec<String> {
+    let mut pre = Vec::new();
+    if let Some(p) = accounts::auth_config_for_url(url) {
+        pre.push("-c".to_string());
+        pre.push(format!("{}={}", p.0, p.1));
+    }
+    pre
+}
+
+/// Reads the branch list of a clone source without cloning it.
 #[tauri::command]
-pub async fn clone_repo(url: String, dest: String) -> Result<String, String> {
+pub async fn probe_remote(url: String) -> Result<RemoteProbe, String> {
     blocking(move || {
         ensure_not_flag(&url)?;
-        let mut pre = Vec::new();
-        if let Some(p) = accounts::auth_config_for_url(&url) {
-            pre.push("-c".to_string());
-            pre.push(format!("{}={}", p.0, p.1));
+        let mut c = base(None, &url_pre(&url));
+        c.args(["ls-remote", "--symref", "--", &url, "HEAD", "refs/heads/*"]);
+        let o = exec(c)?;
+        if o.code != 0 {
+            return Err(fail(&o));
         }
+        let mut branches = Vec::new();
+        let mut default_branch = None;
+        for line in o.stdout.lines() {
+            if let Some(r) = line.strip_prefix("ref: refs/heads/") {
+                default_branch = r.split('\t').next().map(str::to_string);
+            } else if let Some(b) = line.split('\t').nth(1).and_then(|r| r.strip_prefix("refs/heads/")) {
+                branches.push(b.to_string());
+            }
+        }
+        branches.sort();
+        Ok(RemoteProbe { branches, default_branch })
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn clone_repo(url: String, dest: String, opts: Option<CloneOpts>) -> Result<String, String> {
+    blocking(move || {
+        ensure_not_flag(&url)?;
+        let o = opts.unwrap_or_default();
+        let pre = url_pre(&url);
         let parent = std::path::Path::new(&dest)
             .parent()
             .ok_or("Invalid destination")?
             .to_string_lossy()
             .into_owned();
         std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
-        run_all(&parent, &pre, &["clone", "--progress", "--", &url, &dest])?;
+        let mut args: Vec<String> = vec!["clone".into(), "--progress".into()];
+        if let Some(b) = o.branch.filter(|b| !b.is_empty()) {
+            ensure_not_flag(&b)?;
+            args.push("--branch".into());
+            args.push(b);
+        }
+        if let Some(d) = o.depth.filter(|d| *d > 0) {
+            args.push("--depth".into());
+            args.push(d.to_string());
+        }
+        if o.recurse_submodules {
+            args.push("--recurse-submodules".into());
+        }
+        if o.no_hardlinks {
+            args.push("--no-hardlinks".into());
+        }
+        args.push("--".into());
+        args.push(url);
+        args.push(dest.clone());
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        run_all(&parent, &pre, &refs)?;
         Ok(dest)
     })
     .await
@@ -1607,7 +1675,28 @@ mod tests {
     fn rejects_flag_injection() {
         let d = setup("inject");
         assert!(block_on(checkout(d.clone(), "--orphan=x".into(), false)).is_err());
-        assert!(block_on(clone_repo("--upload-pack=touch /tmp/pwned".into(), "/tmp/x".into())).is_err());
+        assert!(block_on(clone_repo("--upload-pack=touch /tmp/pwned".into(), "/tmp/x".into(), None)).is_err());
         assert!(block_on(merge(d, "-s".into(), false)).is_err());
+    }
+
+    #[test]
+    fn probe_and_clone_options() {
+        let src = setup("clone-src");
+        write(&src, "a.txt", "1");
+        run(&src, &["add", "a.txt"]).unwrap();
+        do_commit(&src, "one");
+        run(&src, &["branch", "dev"]).unwrap();
+        let p = block_on(probe_remote(src.clone())).unwrap();
+        assert_eq!(p.branches, vec!["dev".to_string(), "main".to_string()]);
+        assert_eq!(p.default_branch.as_deref(), Some("main"));
+        assert!(block_on(probe_remote("/nonexistent/stlinux-nope".into())).is_err());
+        assert!(block_on(probe_remote("--upload-pack=x".into())).is_err());
+
+        let dest = format!("{}-dest/copy", tmp("clone-dst"));
+        let opts = CloneOpts { branch: Some("dev".into()), depth: Some(1), recurse_submodules: true, no_hardlinks: true };
+        block_on(clone_repo(format!("file://{src}"), dest.clone(), Some(opts))).unwrap();
+        assert_eq!(run(&dest, &["rev-parse", "--abbrev-ref", "HEAD"]).unwrap().trim(), "dev");
+        assert_eq!(run(&dest, &["rev-list", "--count", "HEAD"]).unwrap().trim(), "1");
+        assert!(block_on(clone_repo(src, dest, Some(CloneOpts { branch: Some("--x".into()), ..Default::default() }))).is_err());
     }
 }

@@ -152,6 +152,18 @@ export default function FileStatus() {
         label: 'Ignore...',
         onClick: () => app.openDialog('ignore', { path, file: f.path }),
       },
+      { separator: true },
+      {
+        label: 'Copy Relative Path',
+        onClick: () => void navigator.clipboard.writeText(paths.join('\n')).then(() => app.notify('ok', 'Path copied')),
+      },
+      {
+        label: 'Copy Full Path',
+        onClick: () =>
+          void navigator.clipboard
+            .writeText(paths.map((p) => `${path.replace(/\/+$/, '')}/${p}`).join('\n'))
+            .then(() => app.notify('ok', 'Path copied')),
+      },
     )
     setMenu({ x: e.clientX, y: e.clientY, items })
   }
